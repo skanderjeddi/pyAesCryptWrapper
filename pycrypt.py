@@ -49,8 +49,8 @@ def main():
                 exit(1)
             except ValueError:
                 print(f'\n[!] An unspecified exception was thrown while trying to process {file_path}.')
-                print(f'[!] This often means that the input file could not be located. Check your path and try again.')
-                print('[!] Exiting...')
+                print(f'[!] This can mean 2 things:\n\t1 - The file was not found\n\t2 - The password is incorrect and did not match the encryption password')
+                print('[!] Please check your path/password and try again.\n[!] Exiting...')
                 exit(1)
         else:
             print(f'[!] Unrecognized operation "{mode}"')

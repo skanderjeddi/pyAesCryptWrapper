@@ -12,7 +12,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-```python3 e/d [pwd] [file]```
+```python3 encrypt/decrypt key path [--name output]```
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

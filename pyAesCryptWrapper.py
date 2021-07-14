@@ -36,6 +36,7 @@ GitHub page: https://github.com/marcobellaccini/pyAesCrypt
 VERSION = 1.0
 VALID_EXTENSIONS = ['png', 'jpg', 'jpeg', 'mov', 'mp4', 'txt', 'heic', 'pdf']
 KEEP_NAME = True
+SILENT_SKIP = True
 
 
 def parse_args():
@@ -43,7 +44,7 @@ def parse_args():
     if len(sys.argv) != 4:
         print(
             'Usage: python3 pyAesCryptWrapper.py [encrypt/decrypt] [key] [path]')
-        valid_args = False
+        exit(-1)
     mode, key, path = sys.argv[1].lower(), sys.argv[2], sys.argv[3]
     if mode != 'encrypt' and mode != 'decrypt':
         print(f'Unrecognized mode: {mode}')
@@ -96,35 +97,58 @@ def process_file(filepath, mode, key):
                 f'An error occurred while processing {file_name}: {value_error}')
             exit(-1)
     else:
-        print(f'\tSkipping file {file_name} with extension {file_ext}')
+        if not SILENT_SKIP:
+            print(f'\tSkipping file {file_name} with extension {file_ext}')
 
 
-def process_dir(dirpath, mode, key):
+def process_dir(dirpath, mode, key, files_processed = 0, parent_dir = None):
+    total_files = 0
+    dirname = Path(dirpath).name
+    if parent_dir:
+        print(f'\tProcessing directory {parent_dir}/{dirname}...')
+    else:
+        print(f'\tProcessing directory {dirname}...')
     os.chdir(dirpath)
     children = os.listdir('.')
-    files_to_process = []
+    files_to_process, dirs_to_process = [], []
     total_time_elapsed = 0
     for child in children:
-        path_object = Path(child)
-        file_name = path_object.name
-        file_ext = file_name.split('.')[-1].lower()
-        if file_ext in VALID_EXTENSIONS:
-            files_to_process.append(child)
+        if not os.path.isdir(child):
+            path_object = Path(child)
+            file_name = path_object.name
+            file_ext = file_name.split('.')[-1].lower()
+            if file_ext in VALID_EXTENSIONS:
+                files_to_process.append(child)
+            else:
+                if not SILENT_SKIP:
+                    print(f'\tSkipping file {file_name} with extension {file_ext}')
         else:
-            print(f'\tSkipping file {file_name} with extension {file_ext}')
+            dirs_to_process.append(child)
     for fp in files_to_process:
         total_time_elapsed += process_file(fp, mode, key)
-    print(f'\tDone (in {total_time_elapsed}s).')
+        total_files += 1
+    for sub_dir in dirs_to_process:
+        sub_time_elapsed, sub_dir_files = process_dir(sub_dir, mode, key, parent_dir = (parent_dir + "/" + Path(dirpath).name if parent_dir is not None else Path(dirpath).name), files_processed = total_files)
+        total_time_elapsed += sub_time_elapsed
+        total_files += sub_dir_files
+    return (total_time_elapsed, total_files)
 
 
 def main():
+    mode, key, path = parse_args()
     print(
         f'pyAesCryptWrapper {VERSION} by Skander J. (https://github.com/skanderjeddi/)')
     print(f'Only processing the following extensions: {VALID_EXTENSIONS}')
-    mode, key, path = parse_args()
     if os.path.isdir(path):
-        print(f'\tProcessing directory {path}...')
-        process_dir(path, mode, key)
+        if mode == 'encrypt':
+            print(f'Encrypting {path} recursively...')
+        else:
+            print(f'Decrypting {path} recursively...')
+        total_time_elapsed, total_files = process_dir(path, mode, key)
+        if mode == 'encrypt':
+            print(f'\tDone in {total_time_elapsed}s, total files encrypted: {total_files}.')
+        else:
+            print(f'\tDone in {total_time_elapsed}s, total files decrypted: {total_files}.')
     else:
         print(f'\tProcessing file {path}...')
         process_file(path, mode, key)

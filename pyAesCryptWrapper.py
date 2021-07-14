@@ -18,22 +18,24 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 '''
 
+import pyAesCrypt as pac
 import os
 import sys
 import uuid
 from pathlib import Path
+from timeit import default_timer as timer
 
 '''
 pyAesCrypt is a Python 3 file-encryption module and script that uses AES256-CBC to encrypt/decrypt files and binary streams.
 PyPI page: https://pypi.org/project/pyAesCrypt/
 GitHub page: https://github.com/marcobellaccini/pyAesCrypt
 '''
-import pyAesCrypt as pac
 
 # TODO: ADD DOCUMENTATION
 
 VERSION = 1.0
-VALID_EXTENSIONS = ['png', 'jpg', 'jpeg', 'mov', 'mp4', 'txt', 'heic']
+VALID_EXTENSIONS = ['png', 'jpg', 'jpeg', 'mov', 'mp4', 'txt', 'heic', 'pdf']
+KEEP_NAME = True
 
 
 def parse_args():
@@ -66,16 +68,32 @@ def process_file(filepath, mode, key):
     file_ext = file_name.split('.')[-1].lower()
     if file_ext in VALID_EXTENSIONS:
         try:
+            time_elapsed = 0
             file_uuid = str(uuid.uuid4()) + '.' + file_ext
-            print(f'\t\t{file_name} -> {file_uuid}')
             if mode == 'encrypt':
+                start = timer()
                 pac.encryptFile(file_name, file_uuid, key)
+                end = timer()
+                time_elapsed = end - start
                 os.remove(file_name)
+                if KEEP_NAME:
+                    os.rename(file_uuid, file_name)
             elif mode == 'decrypt':
+                start = timer()
                 pac.decryptFile(file_name, file_uuid, key)
+                end = timer()
+                time_elapsed = end - start
                 os.remove(file_name)
+                if KEEP_NAME:
+                    os.rename(file_uuid, file_name)
+            if KEEP_NAME:
+                print(f'\t\t{file_name} -> {file_name} (in {time_elapsed}s)')
+            else:
+                print(f'\t\t{file_name} -> {file_uuid} (in {time_elapsed}s)')
+            return time_elapsed
         except ValueError as value_error:
-            print(f'An error occurred while processing {file_name}: {value_error}')
+            print(
+                f'An error occurred while processing {file_name}: {value_error}')
             exit(-1)
     else:
         print(f'\tSkipping file {file_name} with extension {file_ext}')
@@ -85,6 +103,7 @@ def process_dir(dirpath, mode, key):
     os.chdir(dirpath)
     children = os.listdir('.')
     files_to_process = []
+    total_time_elapsed = 0
     for child in children:
         path_object = Path(child)
         file_name = path_object.name
@@ -94,8 +113,8 @@ def process_dir(dirpath, mode, key):
         else:
             print(f'\tSkipping file {file_name} with extension {file_ext}')
     for fp in files_to_process:
-        process_file(fp, mode, key)
-    print('\tDone.')
+        total_time_elapsed += process_file(fp, mode, key)
+    print(f'\tDone (in {total_time_elapsed}s).')
 
 
 def main():

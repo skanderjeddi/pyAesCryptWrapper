@@ -1,6 +1,6 @@
-# Pycrypt
+# pyAesCryptWrapper
 
-An AES based encryption/decryption program for Python3.
+An AES based encryption/decryption (pyAesCrypt) wrapper for Python3.
 
 ## Installation
 
@@ -12,7 +12,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-```python3 encrypt/decrypt key path [--name output]```
+```python3 pyAesCryptWrapper.py [encrypt/decrypt] [key] [path]```
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

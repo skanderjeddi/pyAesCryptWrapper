@@ -18,7 +18,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 '''
 
-import pyAesCrypt as pac
 import os
 import sys
 import uuid
@@ -29,86 +28,87 @@ pyAesCrypt is a Python 3 file-encryption module and script that uses AES256-CBC 
 PyPI page: https://pypi.org/project/pyAesCrypt/
 GitHub page: https://github.com/marcobellaccini/pyAesCrypt
 '''
+import pyAesCrypt as pac
 
 # TODO: ADD DOCUMENTATION
 
 VERSION = 1.0
-EXTS = ['png', 'jpg', 'jpeg', 'mov', 'mp4', 'txt', 'heic']
+VALID_EXTENSIONS = ['png', 'jpg', 'jpeg', 'mov', 'mp4', 'txt', 'heic']
 
 
-def parseargs():
-    validargs = True
+def parse_args():
+    valid_args = True
     if len(sys.argv) != 4:
         print(
             'Usage: python3 pyAesCryptWrapper.py [encrypt/decrypt] [key] [path]')
-        validargs = False
+        valid_args = False
     mode, key, path = sys.argv[1].lower(), sys.argv[2], sys.argv[3]
     if mode != 'encrypt' and mode != 'decrypt':
         print(f'Unrecognized mode: {mode}')
         print('Valid modes: encrypt/decrypt')
-        validargs = False
+        valid_args = False
     if not os.path.exists(path):
         print(f'Invalid path: {path} doesn\'t exist on drive')
-        validargs = False
-    if validargs:
+        valid_args = False
+    if valid_args:
         return mode, key, path
     else:
         print('Some arguments were invalid. Please try again.')
         exit(-1)
 
 
-def processfile(filepath, mode, key):
-    pathobject = Path(filepath)
-    parentdir = pathobject.parent.absolute()
-    if os.getcwd() is not parentdir:
-        os.chdir(parentdir)
-    filename = pathobject.name
-    fileext = filename.split('.')[-1].lower()
-    if fileext in EXTS:
+def process_file(filepath, mode, key):
+    path_object = Path(filepath)
+    parent_dir = path_object.parent.absolute()
+    if os.getcwd() is not parent_dir:
+        os.chdir(parent_dir)
+    file_name = path_object.name
+    file_ext = file_name.split('.')[-1].lower()
+    if file_ext in VALID_EXTENSIONS:
         try:
-            filenewname = str(uuid.uuid4()) + '.' + fileext
-            print(f'\t\t{filename} -> {filenewname}')
+            file_uuid = str(uuid.uuid4()) + '.' + file_ext
+            print(f'\t\t{file_name} -> {file_uuid}')
             if mode == 'encrypt':
-                pac.encryptFile(filename, filenewname, key)
-                os.remove(filename)
+                pac.encryptFile(file_name, file_uuid, key)
+                os.remove(file_name)
             elif mode == 'decrypt':
-                pac.decryptFile(filename, filenewname, key)
-                os.remove(filename)
-        except ValueError as valuerror:
-            # TODO: print error
+                pac.decryptFile(file_name, file_uuid, key)
+                os.remove(file_name)
+        except ValueError as value_error:
+            print(f'An error occurred while processing {file_name}: {value_error}')
             exit(-1)
     else:
-        print(f'\tSkipping file {filename} with extension {fileext}')
+        print(f'\tSkipping file {file_name} with extension {file_ext}')
 
 
-def processdir(dirpath, mode, key):
+def process_dir(dirpath, mode, key):
     os.chdir(dirpath)
     children = os.listdir('.')
-    toprocess = []
+    files_to_process = []
     for child in children:
-        pathobject = Path(child)
-        filename = pathobject.name
-        fileext = filename.split('.')[-1].lower()
-        if fileext in EXTS:
-            toprocess.append(child)
+        path_object = Path(child)
+        file_name = path_object.name
+        file_ext = file_name.split('.')[-1].lower()
+        if file_ext in VALID_EXTENSIONS:
+            files_to_process.append(child)
         else:
-            print(f'\tSkipping file {filename} with extension {fileext}')
-    for fp in toprocess:
-        processfile(fp, mode, key)
+            print(f'\tSkipping file {file_name} with extension {file_ext}')
+    for fp in files_to_process:
+        process_file(fp, mode, key)
     print('\tDone.')
 
 
 def main():
     print(
         f'pyAesCryptWrapper {VERSION} by Skander J. (https://github.com/skanderjeddi/)')
-    print(f'Only processing the following extensions: {EXTS}')
-    mode, key, path = parseargs()
+    print(f'Only processing the following extensions: {VALID_EXTENSIONS}')
+    mode, key, path = parse_args()
     if os.path.isdir(path):
         print(f'\tProcessing directory {path}...')
-        processdir(path, mode, key)
+        process_dir(path, mode, key)
     else:
         print(f'\tProcessing file {path}...')
-        processfile(path, mode, key)
+        process_file(path, mode, key)
         print('\tDone.')
     print('Thanks for using my software!')
 

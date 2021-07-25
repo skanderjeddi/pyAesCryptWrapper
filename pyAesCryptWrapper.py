@@ -24,6 +24,7 @@ import sys
 import uuid
 from pathlib import Path
 from timeit import default_timer as timer
+from pyArgs import parse_args
 
 '''
 pyAesCrypt is a Python 3 file-encryption module and script that uses AES256-CBC to encrypt/decrypt files and binary streams.
@@ -34,40 +35,27 @@ GitHub page: https://github.com/marcobellaccini/pyAesCrypt
 # TODO: ADD DOCUMENTATION
 
 VERSION = 1.0
-VALID_EXTENSIONS = ['png', 'jpg', 'jpeg', 'mov', 'mp4', 'txt', 'heic', 'pdf']
+VALID_EXTENSIONS = ['*']
 KEEP_NAME = True
-SILENT_SKIP = True
+SILENT_SKIP = False
 
 
-def parse_args():
-    valid_args = True
-    if len(sys.argv) != 4:
-        print(
-            'Usage: python3 pyAesCryptWrapper.py [encrypt/decrypt] [key] [path]')
-        exit(-1)
-    mode, key, path = sys.argv[1].lower(), sys.argv[2], sys.argv[3]
-    if mode != 'encrypt' and mode != 'decrypt':
-        print(f'Unrecognized mode: {mode}')
-        print('Valid modes: encrypt/decrypt')
-        valid_args = False
-    if not os.path.exists(path):
-        print(f'Invalid path: {path} doesn\'t exist on drive')
-        valid_args = False
-    if valid_args:
-        return mode, key, path
-    else:
-        print('Some arguments were invalid. Please try again.')
-        exit(-1)
+def gen_params():
+    args_map = parse_args(sys.argv, positionals = [ 'mode', 'key', 'path' ], optionals_valueless = [ ('recursive', 'R'), ('silent', 's') ], script_name = 'pyAesCryptWrapper.py', from_sys_argv = True)
+    positionals, optionals, optionals_valueless = args_map['positionals'], args_map['optionals'], args_map['optionals_valueless']
+    mode, key, path = positionals['mode'], positionals['key'], positionals['path']
+    recur, silent = 'recursive' in optionals_valueless, 'silent' in optionals_valueless
+    return mode, key, path, recur, silent
 
 
-def process_file(filepath, mode, key):
+def process_file(filepath, mode, key, silent):
     path_object = Path(filepath)
     parent_dir = path_object.parent.absolute()
     if os.getcwd() is not parent_dir:
         os.chdir(parent_dir)
     file_name = path_object.name
     file_ext = file_name.split('.')[-1].lower()
-    if file_ext in VALID_EXTENSIONS:
+    if file_ext in VALID_EXTENSIONS or '*' in VALID_EXTENSIONS:
         try:
             time_elapsed = 0
             file_uuid = str(uuid.uuid4()) + '.' + file_ext
@@ -87,27 +75,28 @@ def process_file(filepath, mode, key):
                 os.remove(file_name)
                 if KEEP_NAME:
                     os.rename(file_uuid, file_name)
-            if KEEP_NAME:
-                print(f'\t\t{file_name} -> {file_name} (in {time_elapsed}s)')
-            else:
-                print(f'\t\t{file_name} -> {file_uuid} (in {time_elapsed}s)')
+            if not silent:
+                if KEEP_NAME:
+                    print(f'\t\t{file_name} -> {file_name} (in {time_elapsed}s)')
+                else:
+                    print(f'\t\t{file_name} -> {file_uuid} (in {time_elapsed}s)')
             return time_elapsed
         except ValueError as value_error:
-            print(
-                f'An error occurred while processing {file_name}: {value_error}')
+            print(f'An error occurred while processing {file_name}: {value_error}')
             exit(-1)
     else:
         if not SILENT_SKIP:
             print(f'\tSkipping file {file_name} with extension {file_ext}')
 
 
-def process_dir(dirpath, mode, key, files_processed = 0, parent_dir = None):
+def process_dir(dirpath, mode, key, recur, silent, files_processed = 0, parent_dir = None):
     total_files = 0
     dirname = Path(dirpath).name
-    if parent_dir:
-        print(f'\tProcessing directory {parent_dir}/{dirname}...')
-    else:
-        print(f'\tProcessing directory {dirname}...')
+    if not silent:
+        if parent_dir:
+            print(f'\tProcessing directory {parent_dir}/{dirname}...')
+        else:
+            print(f'\tProcessing directory {dirname}...')
     os.chdir(dirpath)
     children = os.listdir('.')
     files_to_process, dirs_to_process = [], []
@@ -117,7 +106,7 @@ def process_dir(dirpath, mode, key, files_processed = 0, parent_dir = None):
             path_object = Path(child)
             file_name = path_object.name
             file_ext = file_name.split('.')[-1].lower()
-            if file_ext in VALID_EXTENSIONS:
+            if file_ext in VALID_EXTENSIONS or '*' in VALID_EXTENSIONS:
                 files_to_process.append(child)
             else:
                 if not SILENT_SKIP:
@@ -127,33 +116,39 @@ def process_dir(dirpath, mode, key, files_processed = 0, parent_dir = None):
     for fp in files_to_process:
         total_time_elapsed += process_file(fp, mode, key)
         total_files += 1
-    for sub_dir in dirs_to_process:
-        sub_time_elapsed, sub_dir_files = process_dir(sub_dir, mode, key, parent_dir = (parent_dir + "/" + Path(dirpath).name if parent_dir is not None else Path(dirpath).name), files_processed = total_files)
-        total_time_elapsed += sub_time_elapsed
-        total_files += sub_dir_files
+    if recur:
+        for sub_dir in dirs_to_process:
+            sub_time_elapsed, sub_dir_files = process_dir(sub_dir, mode, key, parent_dir = (parent_dir + "/" + Path(dirpath).name if parent_dir is not None else Path(dirpath).name), files_processed = total_files)
+            total_time_elapsed += sub_time_elapsed
+            total_files += sub_dir_files
     return (total_time_elapsed, total_files)
 
 
 def main():
-    mode, key, path = parse_args()
-    print(
-        f'pyAesCryptWrapper {VERSION} by Skander J. (https://github.com/skanderjeddi/)')
-    print(f'Only processing the following extensions: {VALID_EXTENSIONS}')
+    mode, key, path, recur, silent = gen_params()
+    if not silent:
+        print(f'pyAesCryptWrapper {VERSION} by Skander J. (https://github.com/skanderjeddi/)')
+        print(f'Only processing the following extensions: {VALID_EXTENSIONS}')
     if os.path.isdir(path):
-        if mode == 'encrypt':
-            print(f'Encrypting {path} recursively...')
-        else:
-            print(f'Decrypting {path} recursively...')
-        total_time_elapsed, total_files = process_dir(path, mode, key)
-        if mode == 'encrypt':
-            print(f'\tDone in {total_time_elapsed}s, total files encrypted: {total_files}.')
-        else:
-            print(f'\tDone in {total_time_elapsed}s, total files decrypted: {total_files}.')
+        if not silent:
+            if mode == 'encrypt':
+                print(f'Encrypting {path} recursively...')
+            else:
+                print(f'Decrypting {path} recursively...')
+        total_time_elapsed, total_files = process_dir(path, mode, key, recur, silent)
+        if not silent:
+            if mode == 'encrypt':
+                print(f'\tDone in {total_time_elapsed}s, total files encrypted: {total_files}.')
+            else:
+                print(f'\tDone in {total_time_elapsed}s, total files decrypted: {total_files}.')
     else:
-        print(f'\tProcessing file {path}...')
-        process_file(path, mode, key)
-        print('\tDone.')
-    print('Thanks for using my software!')
+        if not silent:
+            print(f'\tProcessing file {path}...')
+        process_file(path, mode, key, silent)
+        if not silent:
+            print('\tDone.')
+    if not silent:
+        print('Thanks for using my software!')
 
 
 if __name__ == "__main__":

@@ -36,50 +36,49 @@ GitHub page: https://github.com/marcobellaccini/pyAesCrypt
 
 VERSION = 1.0
 VALID_EXTENSIONS = ['*']
-KEEP_NAME = True
 SILENT_SKIP = False
 
 
 def gen_params():
-    args_map = parse_args(sys.argv, positionals = [ 'mode', 'key', 'path' ], optionals_valueless = [ ('recursive', 'R'), ('silent', 's') ], script_name = 'pyAesCryptWrapper.py', from_sys_argv = True)
+    args_map = parse_args(sys.argv, positionals = [ 'mode', 'key', 'path' ], optionals = [ ('output', 'o') ], optionals_valueless = [ ('recursive', 'R'), ('silent', 's') ], script_name = 'pyAesCryptWrapper.py', from_sys_argv = True)
     positionals, optionals, optionals_valueless = args_map['positionals'], args_map['optionals'], args_map['optionals_valueless']
     mode, key, path = positionals['mode'], positionals['key'], positionals['path']
+    output = None
+    if 'output' in optionals:
+        output = optionals['output']
     recur, silent = 'recursive' in optionals_valueless, 'silent' in optionals_valueless
-    return mode, key, path, recur, silent
+    return mode, key, path, recur, silent, output
 
 
-def process_file(filepath, mode, key, silent):
+def process_file(filepath, mode, key, silent, output = None):
     path_object = Path(filepath)
     parent_dir = path_object.parent.absolute()
     if os.getcwd() is not parent_dir:
         os.chdir(parent_dir)
     file_name = path_object.name
-    file_ext = file_name.split('.')[-1].lower()
+    file_name_no_ext = '.'.join(file_name.split('.')[0:-1]) if '.' in file_name else file_name
+    file_ext = file_name.split('.')[-1].lower() if '.' in file_name else ''
+    final_file_name = None
     if file_ext in VALID_EXTENSIONS or '*' in VALID_EXTENSIONS:
         try:
             time_elapsed = 0
             file_uuid = str(uuid.uuid4()) + '.' + file_ext
+            start = timer()
             if mode == 'encrypt':
-                start = timer()
                 pac.encryptFile(file_name, file_uuid, key)
-                end = timer()
-                time_elapsed = end - start
-                os.remove(file_name)
-                if KEEP_NAME:
-                    os.rename(file_uuid, file_name)
-            elif mode == 'decrypt':
-                start = timer()
+            else:
                 pac.decryptFile(file_name, file_uuid, key)
-                end = timer()
-                time_elapsed = end - start
-                os.remove(file_name)
-                if KEEP_NAME:
-                    os.rename(file_uuid, file_name)
+            end = timer()
+            time_elapsed = end - start
+            os.remove(file_name)
+            if output is not None:
+                output = output.replace('#s', file_name_no_ext).replace('#x', file_ext)
+                final_file_name = output
+            else:
+                final_file_name = file_name
+            os.rename(file_uuid, final_file_name)
             if not silent:
-                if KEEP_NAME:
-                    print(f'\t\t{file_name} -> {file_name} (in {time_elapsed}s)')
-                else:
-                    print(f'\t\t{file_name} -> {file_uuid} (in {time_elapsed}s)')
+                print(f'\t\t{file_name} -> {final_file_name} (in {time_elapsed}s)')
             return time_elapsed
         except ValueError as value_error:
             print(f'An error occurred while processing {file_name}: {value_error}')
@@ -89,7 +88,7 @@ def process_file(filepath, mode, key, silent):
             print(f'\tSkipping file {file_name} with extension {file_ext}')
 
 
-def process_dir(dirpath, mode, key, recur, silent, files_processed = 0, parent_dir = None):
+def process_dir(dirpath, mode, key, recur, silent, output = None, files_processed = 0, parent_dir = None):
     total_files = 0
     dirname = Path(dirpath).name
     if not silent:
@@ -114,28 +113,28 @@ def process_dir(dirpath, mode, key, recur, silent, files_processed = 0, parent_d
         else:
             dirs_to_process.append(child)
     for fp in files_to_process:
-        total_time_elapsed += process_file(fp, mode, key)
+        total_time_elapsed += process_file(fp, mode, key, silent, output = output.replace('#c', str(total_files)) if output is not None else None)
         total_files += 1
     if recur:
         for sub_dir in dirs_to_process:
-            sub_time_elapsed, sub_dir_files = process_dir(sub_dir, mode, key, parent_dir = (parent_dir + "/" + Path(dirpath).name if parent_dir is not None else Path(dirpath).name), files_processed = total_files)
+            sub_time_elapsed, sub_dir_files = process_dir(sub_dir, mode, key, silent, parent_dir = (parent_dir + "/" + Path(dirpath).name if parent_dir is not None else Path(dirpath).name), files_processed = total_files)
             total_time_elapsed += sub_time_elapsed
             total_files += sub_dir_files
     return (total_time_elapsed, total_files)
 
 
 def main():
-    mode, key, path, recur, silent = gen_params()
+    mode, key, path, recur, silent, output = gen_params()
     if not silent:
         print(f'pyAesCryptWrapper {VERSION} by Skander J. (https://github.com/skanderjeddi/)')
         print(f'Only processing the following extensions: {VALID_EXTENSIONS}')
     if os.path.isdir(path):
         if not silent:
             if mode == 'encrypt':
-                print(f'Encrypting {path} recursively...')
+                print(f'Encrypting {path}', '(recursively)...' if recur else '...')
             else:
-                print(f'Decrypting {path} recursively...')
-        total_time_elapsed, total_files = process_dir(path, mode, key, recur, silent)
+                print(f'Decrypting {path}', '(recursively)...' if recur else '...')
+        total_time_elapsed, total_files = process_dir(path, mode, key, recur, silent, output = output)
         if not silent:
             if mode == 'encrypt':
                 print(f'\tDone in {total_time_elapsed}s, total files encrypted: {total_files}.')
@@ -144,7 +143,7 @@ def main():
     else:
         if not silent:
             print(f'\tProcessing file {path}...')
-        process_file(path, mode, key, silent)
+        process_file(path, mode, key, silent, output = output)
         if not silent:
             print('\tDone.')
     if not silent:
